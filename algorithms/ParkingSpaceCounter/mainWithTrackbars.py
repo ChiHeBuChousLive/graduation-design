@@ -4,7 +4,7 @@ import cvzone
 import numpy as np
 
 cap = cv2.VideoCapture('../../static/videos/carPark.mp4')
-width, height = 103, 43
+width, height = 107, 48
 with open('../../static/files/CarParkPos', 'rb') as f:
     posList = pickle.load(f)
 

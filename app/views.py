@@ -1306,9 +1306,14 @@ def carPark_position(request):
             #在最后退出的地方插入数据库
             if key == ord("q"):
                 star_mark=1
-                for pos in posList:
-                    models.Car_manage_test(carnum=star_mark, carport=star_mark, begintime=None, endtime=None, genre=None,parking=False).save()
-                    star_mark = star_mark + 1
+                #如果有数据，那么说明这是第二次导入
+                if models.Car_manage_test.objects.count()>0:
+                    obj=models.Car_manage_test.objects.get(carport=star_mark)
+                    obj.carport=star_mark
+                else:
+                    for pos in posList:
+                        models.Car_manage_test(carport=star_mark, begintime=None, endtime=None, genre=None,parking=False).save()
+                        star_mark = star_mark + 1
                 break
 
         cv2.destroyAllWindows()
@@ -1406,7 +1411,7 @@ def video(request):
     例如：<img src='https://ip:port/uri' >
     """
     cap = cv2.VideoCapture('static/videos/carPark.mp4')
-    width, height = 103, 43
+    width, height = 107, 48
     with open('static/files/CarParkPos', 'rb') as f:
         posList = pickle.load(f)
 
