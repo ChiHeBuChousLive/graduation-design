@@ -459,7 +459,7 @@ background-color: rgba(0, 0, 0, 0.4); position: fixed; left: 0; right: 0; top: 0
 .pulseWarningIns { -webkit-animation: pulseWarningIns 0.75s infinite alternate; animation: pulseWarningIns 0.75s infinite alternate; }
 /* Internet Explorer 9 has some special quirks that are fixed here */
 /* The icons are not animated. */
-/* This file is automatically merged into sweet-alert.min.js through Gulp */
+/* This files is automatically merged into sweet-alert.min.js through Gulp */
 /* Error icon */
 .sweet-alert .sa-icon.sa-error .sa-line.sa-left { -ms-transform: rotate(45deg) \9; }
 .sweet-alert .sa-icon.sa-error .sa-line.sa-right { -ms-transform: rotate(-45deg) \9; }

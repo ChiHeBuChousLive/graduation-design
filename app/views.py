@@ -14,6 +14,14 @@ from django.utils.six import BytesIO
 
 from app import models
 from utils.paginater import Paginater
+#----------------carpark-----------------------
+from algorithms import ParkingSpaceCounter as ps
+import cv2
+import pickle
+import cvzone
+from django.http import StreamingHttpResponse
+
+#--------------------------------------------------------
 
 # 百度api的三个参数，需要申请获取
 BAIDU_APP_ID = '43005391'
@@ -1247,3 +1255,170 @@ def test2(request):
         print(e)
         error = '请选择一张图片！'
         return render(request, 'test2.html', {'error': error})
+
+#-----------------------algorithum code--------------------------------------------------------------------------------------------------
+
+# 停车场定位
+@login_required
+@vip_valid
+def carPark_position(request):
+    # post方式进入，返回页面
+    if request.method == 'GET':
+        return render(request, 'carPark_position.html')
+
+    img = request.FILES.get('car_img')
+
+    #没有图片报错
+    if img is None:
+        # 没有选择图片，而直接点击检测
+        error = '请选择一张图片！'
+        return render(request, 'carPark_position.html', {'error': error})
+
+    try:
+        width, height = 107, 48
+        try:
+            with open('static/files/CarParkPos', 'rb') as f:
+                posList = pickle.load(f)
+        except:
+            posList = []
+
+        def mouseClick(events, x, y, flags, params):
+            if events == cv2.EVENT_LBUTTONDOWN:
+                posList.append((x, y))
+            if events == cv2.EVENT_RBUTTONDOWN:
+                for i, pos in enumerate(posList):
+                    x1, y1 = pos
+                    if x1 < x < x1 + width and y1 < y < y1 + height:
+                        posList.pop(i)
+
+            with open('static/files/CarParkPos', 'wb') as f:
+                pickle.dump(posList, f)
+
+
+        while True:
+            img = cv2.imread('static/imgs/carParkImg.png')
+            for pos in posList:
+                cv2.rectangle(img, pos, (pos[0] + width, pos[1] + height), (255, 0, 255), 2)
+
+            cv2.imshow("Image", img)
+            cv2.setMouseCallback("Image", mouseClick)
+            key=cv2.waitKey(1)
+            #在最后退出的地方插入数据库
+            if key == ord("q"):
+                star_mark=1
+                for pos in posList:
+                    models.Car_manage_test(carnum=star_mark, carport=star_mark, begintime=None, endtime=None, genre=None,parking=False).save()
+                    star_mark = star_mark + 1
+                break
+
+        cv2.destroyAllWindows()
+        error="success"
+        return render(request, 'carPark_position.html', {'error': error})
+
+    #出现错误
+    except Exception as e:
+        print(traceback.format_exc())
+        error = '未知错误'
+        return render(request, 'test.html', {'error': error})
+
+
+# -------------------- 停车场检测 ----------------------------------------------------------------------
+@login_required
+@vip_valid
+def carPark_count(request):
+    #post方式进入
+    if request.method == 'GET':
+        return render(request, 'carPark_count.html')
+
+def checkSpaces(img,posList,width,height,imgThres):
+    spaces = 0
+    for pos in posList:
+        x, y = pos
+        w, h = width, height
+
+        imgCrop = imgThres[y:y + h, x:x + w]
+        count = cv2.countNonZero(imgCrop)
+
+        if count < 900:
+            color = (0, 200, 0)
+            thic = 5
+            spaces += 1
+
+        else:
+            color = (0, 0, 200)
+            thic = 2
+
+        cv2.rectangle(img, (x, y), (x + w, y + h), color, thic)
+
+        cv2.putText(img, str(cv2.countNonZero(imgCrop)), (x, y + h - 6), cv2.FONT_HERSHEY_PLAIN, 1,
+                    color, 2)
+
+    cvzone.putTextRect(img, f'Free: {spaces}/{len(posList)}', (50, 60), thickness=3, offset=20,
+                       colorR=(0, 200, 0))
+
+def gen_display(cap,posList,width, height):
+    """
+    视频流生成器功能。
+    """
+    while True:
+        # Get image frame
+        success, img = cap.read()
+        if cap.get(cv2.CAP_PROP_POS_FRAMES) == cap.get(cv2.CAP_PROP_FRAME_COUNT):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            # img = cv2.imread('img.png')
+        imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        imgBlur = cv2.GaussianBlur(imgGray, (3, 3), 1)
+        # ret, imgThres = cv2.threshold(imgBlur, 150, 255, cv2.THRESH_BINARY)
+
+        val1 = cv2.getTrackbarPos("Val1", "Vals")
+        val2 = cv2.getTrackbarPos("Val2", "Vals")
+        val3 = cv2.getTrackbarPos("Val3", "Vals")
+        if val1 % 2 == 0: val1 += 1
+        if val3 % 2 == 0: val3 += 1
+        imgThres = cv2.adaptiveThreshold(imgBlur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                             cv2.THRESH_BINARY_INV, val1, val2)
+        imgThres = cv2.medianBlur(imgThres, val3)
+        kernel = np.ones((3, 3), np.uint8)
+        imgThres = cv2.dilate(imgThres, kernel, iterations=1)
+
+        checkSpaces(img,posList,width,height,imgThres)
+        # Display Output
+        #cv2.imshow("Image", img)
+        # cv2.imshow("ImageGray", imgThres)
+        # cv2.imshow("ImageBlur", imgBlur)
+        if success:
+            # 将图片进行解码
+            success, img = cv2.imencode('.jpeg', img)
+            if success:
+                # 转换为byte类型的，存储在迭代器中
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + img.tobytes() + b'\r\n')
+        key = cv2.waitKey(1)
+        if key == ord('q'):
+            cv2.destroyAllWindows()
+            break
+
+#停车场视频
+@login_required
+def video(request):
+    """
+    视频流路由。将其放入img标记的src属性中。
+    例如：<img src='https://ip:port/uri' >
+    """
+    cap = cv2.VideoCapture('static/videos/carPark.mp4')
+    width, height = 103, 43
+    with open('static/files/CarParkPos', 'rb') as f:
+        posList = pickle.load(f)
+
+    def empty(a):
+        pass
+
+    cv2.namedWindow("Vals")
+    cv2.resizeWindow("Vals", 640, 240)
+    cv2.createTrackbar("Val1", "Vals", 25, 50, empty)
+    cv2.createTrackbar("Val2", "Vals", 16, 50, empty)
+    cv2.createTrackbar("Val3", "Vals", 5, 50, empty)
+
+    return StreamingHttpResponse(gen_display(cap,posList,width, height), content_type='multipart/x-mixed-replace; boundary=frame')
+
+

@@ -38,6 +38,18 @@ class Car_manage(models.Model):
     class Meta:
         db_table = "car_manage"
 
+# 车位动态测试表
+class Car_manage_test(models.Model):
+    carnum = models.CharField(max_length=32, unique=True, null=True, verbose_name='车牌号')
+    carport = models.IntegerField(verbose_name='车位')
+    begintime = models.DateTimeField(auto_now=False, auto_now_add=False, null=True)
+    endtime = models.DateTimeField(auto_now=False, auto_now_add=False, null=True)
+    genre = models.IntegerField(verbose_name='种类', null=True)
+    parking= models.BooleanField(default=False)
+
+    # 设置表名称
+    class Meta:
+        db_table = "car_manage_test"
 
 # 停车记录
 class Car_record(models.Model):
@@ -108,5 +120,5 @@ class Extra_charge(models.Model):
         db_table = "extra_charge"
 
 # python manage.py makemigrations
-# python manage,py migrate
+# python manage.py migrate
 #使用这个命令可以生成数据库
