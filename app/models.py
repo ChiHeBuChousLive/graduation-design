@@ -45,8 +45,8 @@ class Car_manage_test(models.Model):
     begintime = models.DateTimeField(auto_now=False, auto_now_add=False, null=True)
     endtime = models.DateTimeField(auto_now=False, auto_now_add=False, null=True)
     genre = models.IntegerField(verbose_name='种类', null=True)
-    parking= models.BooleanField(default=False)
-
+    parking= models.BooleanField(default=False,verbose_name='是否存在车辆')
+    pos=models.CharField(max_length=32,unique=False,null=True,verbose_name='位置')
     # 设置表名称
     class Meta:
         db_table = "car_manage_test"
@@ -56,6 +56,7 @@ class Car_record(models.Model):
     carnum = models.CharField(max_length=32, verbose_name='车牌号')
     begintime = models.DateTimeField(auto_now=False, auto_now_add=False)
     endtime = models.DateTimeField(auto_now=False, auto_now_add=False)
+    #是不是会员
     genre = models.IntegerField(verbose_name='种类')
     money = models.IntegerField(verbose_name='收费')
 
@@ -65,9 +66,11 @@ class Car_record(models.Model):
 
 
 # 车牌信息表
+# 记录来过了的而系统的所有的车牌
 class License_plate(models.Model):
     car_img = models.ImageField(upload_to='car_imgs', unique=True, blank=True, null=True)
     car_num = models.CharField(max_length=32, unique=True, verbose_name='车牌号', null=True)
+    #是否还在停车场里面
     is_inside = models.BooleanField(default=False)
 
     # 设置表名称

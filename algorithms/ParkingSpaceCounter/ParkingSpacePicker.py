@@ -9,6 +9,8 @@ try:
 except:
     posList = []
 
+#看一下数据
+#print(posList[0][1])
 
 def mouseClick(events, x, y, flags, params):
     if events == cv2.EVENT_LBUTTONDOWN:

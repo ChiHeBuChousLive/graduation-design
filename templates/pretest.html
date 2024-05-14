@@ -2,16 +2,39 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}停车位记录{% endblock %}</title>
-    <!-- 视频样式 -->
-{#    <style>#}
-{#        #video {#}
-{#            width: 500px;#}
-{#            height: 500px;#}
-{#        }#}
-{#    </style>#}
+    <title>实时刷新表格数据</title>
+    <script src="/static/js/jquery-3.4.1.min.js"></script>
+    <script>
+        function fetchTableData() {
+            $.ajax({
+                url: '/api/table-data/',  // Django视图的URL
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    // 清除表格数据
+                    $('#my-table tbody').empty();
+
+                    // 遍历数据并添加到表格中
+                    $.each(data, function(index, row) {
+                        var tr = $('<tr></tr>');
+                        // 假设MyModel有'field1'和'field2'两个字段
+                        tr.append('<td>' + row.carnum + '</td>');
+                        tr.append('<td>' + row.carport + '</td>');
+                        $('#my-table tbody').append(tr);
+                    });
+                },
+                error: function(error) {
+                    console.error('Error:', error);
+                }
+            });
+        }
+
+        // 页面加载完成后立即获取数据，并设置定时器每5秒刷新一次
+        $(document).ready(function() {
+            fetchTableData();  // 首次加载数据
+            setInterval(fetchTableData, 100000);  // 每0.5秒刷新一次
+        });
+    </script>
     <style>
       .left {
         float: left;
@@ -21,7 +44,7 @@
       }
       .right {
         background-color: orange;
-        margin-left:60%;
+        margin-left: 310px;
         height: 300px;
       }
     </style>
@@ -32,34 +55,12 @@
     <div class="lyear-layout-container">
         <main class="lyear-layout-content">
             <div class="container-fluid">
-                <div class="d-flex flex-row" style="width: 100%; height: 423px;border:2px solid #ae00e6">
-                    <div region="west" class="left" class="west" style="width:60%;height: 100%">
-                        <!-- 显示视频流 -->
-                        <h2>视频监控</h2>
-                        <div><img src="http://127.0.0.1:8000/video" id="video"></div>
+                <div class="d-flex flex-row" style="width: 100%; height: 400px;border:2px solid #ae00e6">
+                    <div region="west" class="left" class="west" style="width: 140px;height: 100%">
+                        西
                     </div>
-                    <div region="center" class="right" class="center flex-fill" style="width: 40%;height: 100%">
-                        <div class="panel-footer" style="height: 490px;overflow: auto;">
-                            <table class="table table-hover">
-                                <thead>
-                                <tr>
-                                    <th>序号</th>
-                                    <th>是否空位</th>
-                                    <th>车牌号</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {% for ci in car_in_record %}
-                                    <tr>
-                                        <td>{{ forloop.counter }}</td>
-                                        <td>{{ ci.carnum }}</td>
-                                        <td>{{ ci.carport }}</td>
-                                        <td>{{ ci.begintime|date:"Y-m-d H:i" }}</td>
-                                    </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+                    <div region="center" class="right" class="center flex-fill">
+                        中
                     </div>
                 </div>
                 <!--总统计框框-->
@@ -123,10 +124,46 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="col-sm-6 col-lg-3">
+                        <div class="card">
+                            <div class="card-header bg-warning">
+                                <h4>D区：{{ d_total.0 }}~{{ d_total.1 }}</h4>
+                                <ul class="card-actions">
+                                    <li>
+                                        <a href="/car_port_info/4/?start={{ d_total.0 }}&end={{ d_total.1 }}"> <i
+                                                class="mdi mdi-more"></i></a>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="card-body">
+                                <p>
+                                    <strong>使用情况</strong>
+                                    <strong style="float: right">{{ D_cars_use }}/{{ Dsum }}</strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                     <h1>实时刷新表格数据</h1>
+
+                     <div class="panel-footer" style="height: 490px;overflow: auto;">
+                        <table class="table table-condensed" id="my-table">
+                            <thead>
+                                <tr>
+                                    <th>Field 1</th>
+                                    <th>Field 2</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 表格数据将通过Ajax动态加载 -->
+                            </tbody>
+                        </table>
+                     </div>
                 </div>
             </div>
         </main>
     </div>
 </div>
+
 </body>
 </html>

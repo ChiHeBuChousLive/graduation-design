@@ -36,5 +36,8 @@ urlpatterns = [   #这个是后台自带的管理系统，我们不用管他
                   path(r'media/(?P<path>.*)/', serve, {'document_root': MEDIA_ROOT}),
                   path('carPark_position/', views.carPark_position),
                   path('carPark_count/', views.carPark_count),
-                  path('video/', views.video)
+                  path('video/', views.video),
+                  path('pretest/', views.pretest),
+                  path('api/table-data/', views.get_table_data, name='table-data'),
+
               ] + static(MEDIA_URL, document_root=MEDIA_ROOT)

@@ -20,13 +20,13 @@ import cv2
 import pickle
 import cvzone
 from django.http import StreamingHttpResponse
-
+from django.http import JsonResponse
 #--------------------------------------------------------
 
 # 百度api的三个参数，需要申请获取
-BAIDU_APP_ID = '43005391'
-BAIDU_API_KEY = 'Otai24ilHLMSFTwGAEURYebF'
-BAIDU_SECRET_KEY = "GV3x0ZNw6pYom28ZoxcoY2dPbjQTaO01"
+BAIDU_APP_ID = '64361592'
+BAIDU_API_KEY = 'x2c01QAizmOjWnj8WClii3uC'
+BAIDU_SECRET_KEY = "jMr9oPTHXaSHM0Nubg5lggEFfx6Erho1"
 
 
 # 判断是否登录的装饰器
@@ -249,20 +249,24 @@ def vip_valid(func):
         user_obj = models.User.objects.all()
         now_time = datetime.datetime.now()
         for user in user_obj:
+            #如果过期了
             if now_time > user.endtime:
                 # 过期
                 user.level = 0
                 user.save()
-                # 如果车辆在停车场，则出行需要补交一定费用
+                # 如果车辆已经在停车场，则car_manage改成不是会员
                 # 需要算出会员的时间需要交多少，不是会员的时间交多少
                 try:
                     car_obj = models.Car_manage.objects.get(carnum=user.carnum)
+                    #这个应该是改成不是会员
                     car_obj.genre = 2
                     car_obj.save()
+                    #如果没有extra_charge，就创造一个,deadline为null
                     if not models.Extra_charge.objects.filter(carnum=user.carnum):
                         models.Extra_charge.objects.create(carnum=user.carnum, vip_begintime=user.endtime,
                                                            is_valid=True, money=0)
                     else:
+                        #过期了且已经有记录了的话，就把vip——deadline改成none
                         models.Extra_charge.objects.filter(carnum=user.carnum).update(vip_begintime=user.endtime,
                                                                                       vip_deadline=None,
                                                                                       is_valid=True, money=0)
@@ -298,6 +302,7 @@ def index(request):
 
     # 环形图数据
     # A区总共车位
+    #所有的停车位
     db_all = models.Car_manage.objects.all()
     all_parking_lot = db_all.count()
     lot_grouping = np.array_split(np.arange(start=0, stop=all_parking_lot), 4)  # 所有停车位分成四等分
@@ -347,12 +352,14 @@ def index(request):
 
     # 柱状图数据
     today = datetime.datetime.now()
+    #计算下面的天数
     day1 = today - datetime.timedelta(days=6)
     day2 = today - datetime.timedelta(days=5)
     day3 = today - datetime.timedelta(days=4)
     day4 = today - datetime.timedelta(days=3)
     day5 = today - datetime.timedelta(days=2)
     day6 = today - datetime.timedelta(days=1)
+    #这里用的是record，获取所有的record
     car_record_obj = models.Car_record.objects.all()
     day1_in = 0
     day1_out = 0
@@ -407,6 +414,7 @@ def index(request):
             pass
 
     # 还有今日停入未离开
+    # 这里用的是car_manage
     car_manage_obj = models.Car_manage.objects.filter(carnum__isnull=False)
     for c in car_manage_obj:
         # 判断同一个月
@@ -497,18 +505,22 @@ def user_add(request):
                 models.User.objects.create(name=name, carnum=carnum, phone=phone, level=level, begintime=begintime,
                                            endtime=endtime)
 
-                # 如果车辆先停入，之后再办理会员
+                # 如果车辆先停入，之后再办理会员，那么就要收取额外的费用
                 try:
                     car_obj = models.Car_manage.objects.get(carnum=carnum)
+                    #将类型变为1，也就是会员的意思
                     car_obj.genre = 1
                     car_obj.save()
+                    #额外费用为停进去的时间到现在的时间
                     money = chargecount(car_obj.begintime, datetime.datetime.now())
-                    # 办理会员前需要支付的费用
+                    # 办理会员前需要支付的费用，
                     if not models.Extra_charge.objects.filter(carnum=carnum):
+                        #之前没有记录的话，就设开始时间为进入时间，结束时间为现在
                         models.Extra_charge.objects.create(carnum=carnum, vip_begintime=car_obj.begintime.strftime(
                             "%Y-%m-%d %H:%M:%S"), vip_deadline=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                                            is_valid=True, money=money)
                     else:
+                        #有记录的话，就修改
                         models.Extra_charge.objects.filter(carnum=carnum).update(
                             vip_begintime=car_obj.begintime.strftime("%Y-%m-%d %H:%M:%S"),
                             vip_deadline=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), is_valid=True,
@@ -618,15 +630,19 @@ def user_edit(request):
 @login_required
 @vip_valid
 def user_renewal(request):
+    #点进来会传进来用户的id
     id = request.GET.get('id')
     user_obj = models.User.objects.get(id=id)
     carnum = user_obj.carnum
+    #会员结束日期
     formertime = user_obj.endtime
     if request.method == 'POST':
+        #传进来的等级
         level = request.POST.get('vip-radios')
         if not level:
             return render(request, 'user_renewal.html', {'error': '选择不能为空!'})
         else:
+            #之前是会员，就把之前的时间加上
             if user_obj.level != 0:
                 if level == "1":
                     newtime = (formertime + datetime.timedelta(days=31)).strftime("%Y-%m-%d %H:%M:%S")
@@ -657,15 +673,18 @@ def user_renewal(request):
             user_obj.begintime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             user_obj.endtime = newtime
             user_obj.save()
+            #如果车已经停在里面了，（这里是处理更新时会员过期了的情况）
             try:
                 car_obj = models.Car_manage.objects.get(carnum=carnum)
+                #车位变成会员车位
                 car_obj.genre = 1
                 car_obj.save()
                 now_time = datetime.datetime.now()
+                #如果用户的会员过期了
                 if now_time > formertime:
                     # 过期
                     if car_obj.begintime > formertime:
-                        # 在到期后停进来
+                        # 车在到期后停进来，补全部的钱
                         money = chargecount(car_obj.begintime, datetime.datetime.now())
                         if not models.Extra_charge.objects.filter(carnum=carnum):
                             models.Extra_charge.objects.create(carnum=carnum, vip_begintime=car_obj.begintime.strftime(
@@ -678,7 +697,7 @@ def user_renewal(request):
                                 vip_deadline=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), is_valid=True,
                                 money=money)
                     else:
-                        # 在到期前进来
+                        # 车在到期前进来，补一部分的钱
                         money = chargecount(formertime, datetime.datetime.now())
                         if not models.Extra_charge.objects.filter(carnum=carnum):
                             models.Extra_charge.objects.create(carnum=carnum,
@@ -748,6 +767,7 @@ def user_paging(request):
 @vip_valid
 def car_import(request):
     id = request.session.get('id')
+    #从中间库中获得
     new_car = models.License_plate.objects.get(id=id)
     # 存放空停车位的列表
     remain_list = []
@@ -771,14 +791,17 @@ def car_import(request):
         carport = random.choice(remain_list)
         begintime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         try:
+            #是否是会员
             is_user = models.User.objects.get(carnum=carnum)
             if is_user:
-                # 还要判断是否过期
+                # 还要判断是否过期，leverl有一张卡
                 if is_user.level != 0:
+                    #有卡就是1
                     genre = 1
                 else:
                     genre = 2
         except Exception as e:
+            #不是会员
             genre = 2
         finally:
             carport_obj = models.Car_manage.objects.get(carport=carport)
@@ -817,25 +840,32 @@ def car_import(request):
 @login_required
 @vip_valid
 def car_exit(request):
+    #要修改的id
     id = request.session.get('id')
+    #取出保存图片的地址
     new_car = models.License_plate.objects.get(id=id)
     if request.method == 'POST':
         carnum = request.POST.get('carnum')
         car_obj = models.Car_manage.objects.get(carnum=carnum)
         begintime = car_obj.begintime
+        #这里的价格是现算的
         money = chargecount(begintime, datetime.datetime.now())
         global deadline
         deadline = None
+        #如果是会员，免费
         try:
             models.User.objects.get(carnum=carnum)
             money = 0
         except Exception as e:
             pass
+        #如果没有额外的缴费，就过去
         if not models.Extra_charge.objects.filter(carnum=carnum):
             pass
+        #如果有额外缴费
         else:
             charge_obj = models.Extra_charge.objects.get(carnum=carnum)
-            # 停车中会员到期未重新办理
+            # 停车中会员到期未重新办理，
+            # 注意，这里好像有deadline就按照dealine算，没有就按照现在算，因为在装饰器里如果过期了会置0
             if charge_obj.vip_deadline is None:
                 money = chargecount(charge_obj.vip_begintime, datetime.datetime.now())
             else:
@@ -876,23 +906,33 @@ def car_exit(request):
 @vip_valid
 def car_port(request):
     # A区总共车位
+    #分成四份
     all_parking_lot = models.Car_manage.objects.count()
     lot_grouping = np.array_split(np.arange(start=0, stop=all_parking_lot), 4)
-
+    #print(lot_grouping)
+    #print('---------------------------------------------------------------------------------------------------')
+    #print(lot_grouping[0][0]) 0
+    #print(lot_grouping[0][-1] + 1) 25
+    #通过carport排序
     total_lot = models.Car_manage.objects.all().order_by('carport')
 
     A_cars = total_lot[lot_grouping[0][0]: lot_grouping[0][-1] + 1]
+
+    #使用了的车位
     A_cars_use = 0
+    #a中总车位
     Asum = 0
-    a_start = -1
+    a_start = -1 #用来记录A_cars中第一个有车辆停放的车位的carport值
     # A区使用中车位
     for c in A_cars:
+        #有车牌
         if c.carnum:
             A_cars_use += 1
         if a_start == -1:
             a_start = c.carport
         Asum += 1
 
+    #计算b区
     B_cars = total_lot[lot_grouping[1][0]: lot_grouping[1][-1] + 1]
     B_cars_use = 0
     Bsum = 0
@@ -925,6 +965,8 @@ def car_port(request):
         if d_start == -1:
             d_start = c.carport
         Dsum += 1
+    #进入记录和离开记录
+    #message存在session里
     message = request.session.get('message')
     car_in_record = models.Car_in_record.objects.all().order_by('-id')[:5]
     car_out_record = models.Car_out_record.objects.all().order_by('-id')[:5]
@@ -1139,6 +1181,7 @@ def pay(request):
             money = 0
         except Exception as e:
             pass
+        #最后出库来一个总的record
         models.Car_record.objects.create(carnum=carnum, begintime=begintime, endtime=endtime, genre=genre, money=money)
         # 将此车位清空
         carport_obj = models.Car_manage.objects.get(carnum=carnum)
@@ -1148,7 +1191,7 @@ def pay(request):
         carport_obj.endtime = None
         carport_obj.genre = None
         carport_obj.save()
-        # 将收入写入表中
+        # 将收入写入表中，extra_charge被并入这里了
         models.Charge.objects.create(pay_time=datetime.datetime.now(), money=money)
 
         # 将该车辆设为车场外车辆
@@ -1189,13 +1232,16 @@ def test(request):
     try:
         # 先需要判断该车牌是否已经存在
         res = Park_discern(img.read())
-        # print(res)
+        #print(res)
+        #print('-----------------------------------------------------')
         #这个就是车牌的数值
         carnum = res['words_result']['number']
+        #是否来过
         is_exist = models.License_plate.objects.filter(car_num=carnum).count()
         # 如果不存在
         if is_exist == 0:
             new_car = models.License_plate.objects.create(car_img=img, is_inside=False, car_num=carnum)
+            #存在session里
             request.session['id'] = new_car.id
             time.sleep(2)
             return redirect('/car_import/')
@@ -1277,10 +1323,10 @@ def carPark_position(request):
     try:
         width, height = 107, 48
         try:
-            with open('static/files/CarParkPos', 'rb') as f:
+            with open('static/files/CarParkPos', 'rb') as f:#如果有文件
                 posList = pickle.load(f)
         except:
-            posList = []
+            posList = []#如果没有文件
 
         def mouseClick(events, x, y, flags, params):
             if events == cv2.EVENT_LBUTTONDOWN:
@@ -1331,7 +1377,7 @@ def carPark_position(request):
 @login_required
 @vip_valid
 def carPark_count(request):
-    #post方式进入
+    #get方式进入
     if request.method == 'GET':
         return render(request, 'carPark_count.html')
 
@@ -1426,4 +1472,13 @@ def video(request):
 
     return StreamingHttpResponse(gen_display(cap,posList,width, height), content_type='multipart/x-mixed-replace; boundary=frame')
 
+#--------------------------------------------------------------------------------------------
+#专门用来测试的接口
+def pretest(request):
+    # 渲染初始页面
+    return render(request, 'pretest.html')
 
+def get_table_data(request):
+    # 模拟从数据库获取数据
+    data = list(models.Car_manage.objects.all().values())  # 使用values()返回字典列表
+    return JsonResponse(data, safe=False)  # 因为我们返回的是一个列表，所以需要设置safe=False
