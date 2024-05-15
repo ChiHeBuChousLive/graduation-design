@@ -5,6 +5,45 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}停车位记录{% endblock %}</title>
+    <script src="/static/js/jquery-3.4.1.min.js"></script>
+    <script>
+        function fetchTableData() {
+            $.ajax({
+                url: '/api/table-data/',  // Django视图的URL
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    // 清除表格数据
+                    $('#my-table tbody').empty();
+
+                    // 遍历数据并添加到表格中
+                    $.each(data, function(index, row) {
+                        var tr = $('<tr></tr>');
+                        // 假设MyModel有'field1'和'field2'两个字段
+                        tr.append('<td>' + row.carport + '</td>');
+                           if (row.parking===true){
+                            tr.append('<td style="background-color: red">' + row.parking + '</td>');
+                        }
+                        else{
+                            tr.append('<td>' + row.parking + '</td>');
+                        }
+                        tr.append('<td>' + row.pos + '</td>');
+                        tr.append('<td>' + row.carnum + '</td>');
+                        $('#my-table tbody').append(tr);
+                    });
+                },
+                error: function(error) {
+                    console.error('Error:', error);
+                }
+            });
+        }
+
+        // 页面加载完成后立即获取数据，并设置定时器每5秒刷新一次
+        $(document).ready(function() {
+            fetchTableData();  // 首次加载数据
+            setInterval(fetchTableData, 1000);  // 每0.5秒刷新一次
+        });
+    </script>
     <!-- 视频样式 -->
 {#    <style>#}
 {#        #video {#}
@@ -40,23 +79,17 @@
                     </div>
                     <div region="center" class="right" class="center flex-fill" style="width: 40%;height: 100%">
                         <div class="panel-footer" style="height: 490px;overflow: auto;">
-                            <table class="table table-hover">
+                            <table class="table table-condensed" id="my-table">
                                 <thead>
-                                <tr>
-                                    <th>序号</th>
-                                    <th>是否空位</th>
-                                    <th>车牌号</th>
-                                </tr>
+                                    <tr>
+                                        <th>车位</th>
+                                        <th>是否有车</th>
+                                        <th>位置</th>
+                                        <th>车牌</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
-                                {% for ci in car_in_record %}
-                                    <tr>
-                                        <td>{{ forloop.counter }}</td>
-                                        <td>{{ ci.carnum }}</td>
-                                        <td>{{ ci.carport }}</td>
-                                        <td>{{ ci.begintime|date:"Y-m-d H:i" }}</td>
-                                    </tr>
-                                {% endfor %}
+                                <!-- 表格数据将通过Ajax动态加载 -->
                                 </tbody>
                             </table>
                         </div>

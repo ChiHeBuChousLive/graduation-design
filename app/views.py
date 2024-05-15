@@ -51,7 +51,7 @@ def Park_discern(image):
     app_id = BAIDU_APP_ID
     api_key = BAIDU_API_KEY
     secret_key = BAIDU_SECRET_KEY
-    # 如果三个车牌为空
+    # 如果三个百度为空
     if not app_id or not api_key or not secret_key:
         raise ValueError('Baidu OCR setting can not be empty！')
     #百度aip的方法
@@ -1322,11 +1322,18 @@ def carPark_position(request):
 
     try:
         width, height = 107, 48
-        try:
-            with open('static/files/CarParkPos', 'rb') as f:#如果有文件
-                posList = pickle.load(f)
-        except:
-            posList = []#如果没有文件
+        if models.Car_manage_test.objects.count() > 0: #有数据
+            posList = []
+            start = 0
+            Car_manage_tests = models.Car_manage_test.objects.all()
+            for car_manage_test in Car_manage_tests:
+                posList.append(tuple(map(int, eval(car_manage_test.pos))))
+                print(posList[start])
+                print(posList[start])
+                start = start + 1
+            print("-------------------------------------------------------------")
+        else:
+            posList=[]
 
         def mouseClick(events, x, y, flags, params):
             if events == cv2.EVENT_LBUTTONDOWN:
@@ -1336,35 +1343,41 @@ def carPark_position(request):
                     x1, y1 = pos
                     if x1 < x < x1 + width and y1 < y < y1 + height:
                         posList.pop(i)
-
-            with open('static/files/CarParkPos', 'wb') as f:
-                pickle.dump(posList, f)
-
-
         while True:
             img = cv2.imread('static/imgs/carParkImg.png')
+            #用来标记停车场标号
+            posnumber=1
             for pos in posList:
+                x, y = pos
+                w, h = width, height
                 cv2.rectangle(img, pos, (pos[0] + width, pos[1] + height), (255, 0, 255), 2)
+                cv2.putText(img,str(posnumber) , (x, y + h - 6), cv2.FONT_HERSHEY_PLAIN, 1,
+                            (0,200,0), 2)
+                posnumber=posnumber+1
 
             cv2.imshow("Image", img)
             cv2.setMouseCallback("Image", mouseClick)
             key=cv2.waitKey(1)
             #在最后退出的地方插入数据库
             if key == ord("q"):
+                #清空所有数据库
+                models.Car_manage_test.objects.all().delete()
                 star_mark=1
-                #如果有数据，那么说明这是第二次导入
-                if models.Car_manage_test.objects.count()>0:
-                    obj=models.Car_manage_test.objects.get(carport=star_mark)
-                    obj.carport=star_mark
-                else:
-                    for pos in posList:
-                        models.Car_manage_test(carport=star_mark, begintime=None, endtime=None, genre=None,parking=False).save()
-                        star_mark = star_mark + 1
+                for pos in posList:
+                    models.Car_manage_test(carport=star_mark, begintime=None, endtime=None, genre=None,parking=False,pos=pos).save()
+                    star_mark = star_mark + 1
                 break
 
         cv2.destroyAllWindows()
         error="success"
         return render(request, 'carPark_position.html', {'error': error})
+
+    #出现错误
+    except Exception as e:
+        print(traceback.format_exc())
+        error = '未知错误'
+        return render(request, 'test.html', {'error': error})
+
 
     #出现错误
     except Exception as e:
@@ -1381,23 +1394,33 @@ def carPark_count(request):
     if request.method == 'GET':
         return render(request, 'carPark_count.html')
 
-def checkSpaces(img,posList,width,height,imgThres):
+def checkSpaces(img,posList,width,height,imgThres,time_count):
     spaces = 0
+    carport = 1
     for pos in posList:
         x, y = pos
         w, h = width, height
-
+        #用于计算开始位置
         imgCrop = imgThres[y:y + h, x:x + w]
         count = cv2.countNonZero(imgCrop)
 
         if count < 900:
+            #调整画图格式
             color = (0, 200, 0)
             thic = 5
             spaces += 1
+            if time_count%20==0:
+                #插入数据库
+                models.Car_manage_test.objects.filter(carport=carport).update(parking=0)
 
         else:
             color = (0, 0, 200)
             thic = 2
+            if time_count%20==0:
+                # 插入数据库
+                models.Car_manage_test.objects.filter(carport=carport).update(parking=1)
+
+        carport=carport+1
 
         cv2.rectangle(img, (x, y), (x + w, y + h), color, thic)
 
@@ -1411,6 +1434,7 @@ def gen_display(cap,posList,width, height):
     """
     视频流生成器功能。
     """
+    time_count=0
     while True:
         # Get image frame
         success, img = cap.read()
@@ -1432,7 +1456,8 @@ def gen_display(cap,posList,width, height):
         kernel = np.ones((3, 3), np.uint8)
         imgThres = cv2.dilate(imgThres, kernel, iterations=1)
 
-        checkSpaces(img,posList,width,height,imgThres)
+        checkSpaces(img,posList,width,height,imgThres,time_count)
+        time_count = time_count + 1
         # Display Output
         #cv2.imshow("Image", img)
         # cv2.imshow("ImageGray", imgThres)
@@ -1444,11 +1469,10 @@ def gen_display(cap,posList,width, height):
                 # 转换为byte类型的，存储在迭代器中
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + img.tobytes() + b'\r\n')
-        key = cv2.waitKey(1)
+        key = cv2.waitKey(25)
         if key == ord('q'):
             cv2.destroyAllWindows()
             break
-
 #停车场视频
 @login_required
 def video(request):
@@ -1458,8 +1482,22 @@ def video(request):
     """
     cap = cv2.VideoCapture('static/videos/carPark.mp4')
     width, height = 107, 48
-    with open('static/files/CarParkPos', 'rb') as f:
-        posList = pickle.load(f)
+    #获取文件数据
+    # with open('static/files/CarParkPos', 'rb') as f:
+    #     posList = pickle.load(f)
+    #获取数据库数据
+    if models.Car_manage_test.objects.count() > 0:  # 有数据
+        posList = []
+        start = 0
+        Car_manage_tests = models.Car_manage_test.objects.all()
+        for car_manage_test in Car_manage_tests:
+            posList.append(tuple(map(int, eval(car_manage_test.pos))))
+            print(posList[start])
+            print(posList[start])
+            start = start + 1
+        print("-------------------------------------------------------------")
+    else:
+        posList = []
 
     def empty(a):
         pass
@@ -1475,10 +1513,17 @@ def video(request):
 #--------------------------------------------------------------------------------------------
 #专门用来测试的接口
 def pretest(request):
-    # 渲染初始页面
+    # pos=1
+    # while True:
+    #     for i in range(10):
+    #         models.Car_manage_test.objects.filter(carport=i).update(pos=pos)
+    #         print(pos)
+    #     pos=pos+1
+    #     cv2.waitKey(10)
     return render(request, 'pretest.html')
 
 def get_table_data(request):
     # 模拟从数据库获取数据
-    data = list(models.Car_manage.objects.all().values())  # 使用values()返回字典列表
+    data = list(models.Car_manage_test.objects.all().values())  # 使用values()返回字典列表
     return JsonResponse(data, safe=False)  # 因为我们返回的是一个列表，所以需要设置safe=False
+#--------------------------------------------------------------------------
