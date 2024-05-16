@@ -23,10 +23,10 @@ class SVM(object):
 
 class Reader(object): #读取数据
     def __init__(self) -> None:
-        self.svms2 = SVM('./param/chars2.svm') #读取字符数据
-        self.svmsChinese = SVM('./param/chars2Chinese.svm') #读取汉字数据
-        self.groups2 = np.load('./param/chars2.npy') #读取字符标签
-        self.groupsChinese = np.load('./param/charsChinese.npy') #读取汉字标签
+        self.svms2 = SVM('static/param/chars2.svm') #读取字符数据
+        self.svmsChinese = SVM('static/param/chars2Chinese.svm') #读取汉字数据
+        self.groups2 = np.load('static/param/chars2.npy') #读取字符标签
+        self.groupsChinese = np.load('static/param/charsChinese.npy') #读取汉字标签
 
 
     def recognize_alnum(self, img) -> str: #识别字符

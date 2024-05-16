@@ -1,4 +1,7 @@
 import os
+import sys
+#解决algurithum算法不能导包的问题
+sys.path.append('../algorithms/PlateDetector')
 
 # 项目路径
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

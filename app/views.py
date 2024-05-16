@@ -21,6 +21,7 @@ import pickle
 import cvzone
 from django.http import StreamingHttpResponse
 from django.http import JsonResponse
+from algorithms.PlateDetector import SVM_detector
 #--------------------------------------------------------
 
 # 百度api的三个参数，需要申请获取
@@ -1231,11 +1232,17 @@ def test(request):
         return render(request, 'test.html', {'error': error})
     try:
         # 先需要判断该车牌是否已经存在
-        res = Park_discern(img.read())
-        #print(res)
-        #print('-----------------------------------------------------')
+        #res = Park_discern(img.read())
+        #转换成opencv格式
+        image_data = img.read()
+        nparr = np.frombuffer(image_data, np.uint8)
+        img_RGB = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        res=SVM_detector.car_discern(img_RGB)
+        print(res)
+        print('-----------------------------------------------------')
         #这个就是车牌的数值
-        carnum = res['words_result']['number']
+        #carnum = res['words_result']['number']
+        carnum=res
         #是否来过
         is_exist = models.License_plate.objects.filter(car_num=carnum).count()
         # 如果不存在
@@ -1277,8 +1284,13 @@ def test2(request):
 
     try:
         # 先需要判断该车牌是否已经存在
-        res = Park_discern(img.read())
-        carnum = res['words_result']['number']
+        #res = Park_discern(img.read())
+        #将图片转换为cv格式
+        image_data = img.read()
+        nparr = np.frombuffer(image_data, np.uint8)
+        img_RGB = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        res = SVM_detector.car_discern(img_RGB)
+        carnum =res
         is_exist = models.License_plate.objects.filter(car_num=carnum).count()
         # 如果不存在
         if is_exist == 0:
@@ -1513,17 +1525,16 @@ def video(request):
 #--------------------------------------------------------------------------------------------
 #专门用来测试的接口
 def pretest(request):
-    # pos=1
-    # while True:
-    #     for i in range(10):
-    #         models.Car_manage_test.objects.filter(carport=i).update(pos=pos)
-    #         print(pos)
-    #     pos=pos+1
-    #     cv2.waitKey(10)
+
+    #carstr=SVM_detector.car_discern()
+    #print(carstr)
     return render(request, 'pretest.html')
 
 def get_table_data(request):
     # 模拟从数据库获取数据
     data = list(models.Car_manage_test.objects.all().values())  # 使用values()返回字典列表
     return JsonResponse(data, safe=False)  # 因为我们返回的是一个列表，所以需要设置safe=False
-#--------------------------------------------------------------------------
+#-------------------------------------------------------------------------
+# 车牌识别
+def Park_discern2(image):
+    pass
