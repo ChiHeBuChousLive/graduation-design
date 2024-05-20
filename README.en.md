@@ -1,7 +1,7 @@
 # graduation-design
 
 #### Description
-This is my graduation design
+This is my graduation design. And because of the limited time, I finished it very quickly and did not consider too much about the structure.
 
 #### Software Architecture
 Software architecture description
