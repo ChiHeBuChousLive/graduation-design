@@ -1,7 +1,7 @@
 # graduation-design
 
 #### 介绍
-This is my graduation design
+Smart Parking System using Computer Vision. This project was developed under strict time constraints alongside my internship. Consequently, the focus was placed on implementation speed rather than code modularity, leaving room for future refactoring.
 
 #### 软件架构
 软件架构说明
