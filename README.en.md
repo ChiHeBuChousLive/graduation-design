@@ -1,7 +1,7 @@
 # graduation-design
 
 #### Description
-This is my graduation design. And because of the limited time, I finished it very quickly and did not consider too much about the structure.
+Smart Parking System using Computer Vision. This project was developed under strict time constraints alongside my internship. Consequently, the focus was placed on implementation speed rather than code modularity, leaving room for future refactoring.
 
 #### Software Architecture
 Software architecture description
